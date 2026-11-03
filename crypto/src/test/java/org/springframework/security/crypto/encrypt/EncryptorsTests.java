@@ -80,6 +80,12 @@ public class EncryptorsTests {
 	}
 
 	@Test
+	public void queryableTextIsDeprecatedBecauseOfFixedIv() throws Exception {
+		assertThat(Encryptors.class.getMethod("queryableText", CharSequence.class,
+				CharSequence.class).isAnnotationPresent(Deprecated.class)).isTrue();
+	}
+
+	@Test
 	public void noOpText() {
 		TextEncryptor encryptor = Encryptors.noOpText();
 		assertThat(encryptor.encrypt("text")).isEqualTo("text");
