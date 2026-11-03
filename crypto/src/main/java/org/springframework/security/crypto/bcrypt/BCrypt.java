@@ -688,21 +688,32 @@ public class BCrypt {
 	 * @return	an array containing the binary hashed password
 	 */
 	private byte[] crypt_raw(byte password[], byte salt[], int log_rounds,
-							boolean sign_ext_bug, int safety) {
-		int rounds, i, j;
+							boolean sign_ext_bug, int safety, boolean for_check) {
+		int i, j;
 		int cdata[] =  bf_crypt_ciphertext.clone();
 		int clen = cdata.length;
 		byte ret[];
 
-		if (log_rounds < 4 || log_rounds > 31)
-			throw new IllegalArgumentException ("Bad number of rounds");
-		rounds = 1 << log_rounds;
+		long rounds;
+		if (log_rounds < 4 || log_rounds > 31) {
+			if (!for_check)
+				throw new IllegalArgumentException ("Bad number of rounds");
+			if (log_rounds != 0)
+				throw new IllegalArgumentException ("Bad number of rounds");
+			rounds = 0;
+		}
+		else {
+			rounds = roundsForLogRounds(log_rounds);
+			if (rounds < 16 || rounds > 2147483648L)
+				throw new IllegalArgumentException ("Bad number of rounds");
+		}
+
 		if (salt.length != BCRYPT_SALT_LEN)
 			throw new IllegalArgumentException ("Bad salt length");
 
 		init_key();
 		ekskey(salt, password, sign_ext_bug, safety);
-		for (i = 0; i < rounds; i++) {
+		for (long r = 0; r < rounds; r++) {
 			key(password, sign_ext_bug, safety);
 			key(salt, false, safety);
 		}
@@ -720,6 +731,10 @@ public class BCrypt {
 			ret[j++] = (byte) (cdata[i] & 0xff);
 		}
 		return ret;
+	}
+
+	private static String hashpwforcheck(byte[] passwordb, String salt) {
+		return hashpw(passwordb, salt, true);
 	}
 
 	/**
@@ -745,6 +760,10 @@ public class BCrypt {
 	 * @return	the hashed password
 	 */
 	public static String hashpw(byte passwordb[], String salt) {
+		return hashpw(passwordb, salt, false);
+	}
+
+	private static String hashpw(byte passwordb[], String salt, boolean for_check) {
 		BCrypt B;
 		String real_salt;
 		byte saltb[], hashed[];
@@ -790,7 +809,7 @@ public class BCrypt {
 			passwordb = Arrays.copyOf(passwordb, passwordb.length + 1);
 
 		B = new BCrypt();
-		hashed = B.crypt_raw(passwordb, saltb, rounds, minor == 'x', minor == 'a' ? 0x10000 : 0);
+		hashed = B.crypt_raw(passwordb, saltb, rounds, minor == 'x', minor == 'a' ? 0x10000 : 0, for_check);
 
 		rs.append("$2");
 		if (minor >= 'a')
@@ -905,7 +924,8 @@ public class BCrypt {
 	 * @return	true if the passwords match, false otherwise
 	 */
 	public static boolean checkpw(String plaintext, String hashed) {
-		return equalsNoEarlyReturn(hashed, hashpw(plaintext, hashed));
+		byte[] passwordb = plaintext.getBytes(StandardCharsets.UTF_8);
+		return equalsNoEarlyReturn(hashed, hashpwforcheck(passwordb, hashed));
 	}
 
 	static boolean equalsNoEarlyReturn(String a, String b) {
