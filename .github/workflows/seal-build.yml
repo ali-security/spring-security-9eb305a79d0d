@@ -1,0 +1,26 @@
+name: seal-build
+
+# Build-and-pack only: the test suite runs on Travis (.travis.yml).
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install JDK 1.8.0_232 (the JDK the release was built with)
+        run: |
+          curl -sSfL -o /tmp/jdk8.tar.gz https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u232-b09/OpenJDK8U-jdk_x64_linux_hotspot_8u232b09.tar.gz
+          mkdir -p "$HOME/jdk8" && tar -xzf /tmp/jdk8.tar.gz -C "$HOME/jdk8" --strip-components=1
+          echo "JAVA_HOME=$HOME/jdk8" >> "$GITHUB_ENV"
+          echo "$HOME/jdk8/bin" >> "$GITHUB_PATH"
+      - run: java -version
+      - name: Build spring-security-core jar
+        run: ./gradlew --no-daemon --console=plain :spring-security-core:jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spring-security-core
+          path: core/build/libs/spring-security-core-5.2.1.RELEASE.jar
+          if-no-files-found: error

@@ -1,0 +1,21 @@
+// Sealed build: Gradle's test runner is silent on success. Print every failed or
+// skipped test (with the skip cause) and one summary line per Test task, so the CI
+// log states how many tests ran and passed.
+allprojects {
+	tasks.withType(Test).configureEach { t ->
+		t.testLogging {
+			events 'failed'
+			exceptionFormat 'full'
+		}
+		t.afterTest { desc, result ->
+			if (result.resultType == TestResult.ResultType.SKIPPED) {
+				t.logger.lifecycle("SKIPPED TEST ${t.path} ${desc.className} > ${desc.name}: disabled in the upstream source (JUnit @Ignore/@Disabled or failed assumption), not by this build")
+			}
+		}
+		t.afterSuite { desc, result ->
+			if (desc.parent == null) {
+				t.logger.lifecycle("TEST SUMMARY ${t.path}: ${result.testCount} tests, ${result.successfulTestCount} passed, ${result.failedTestCount} failed, ${result.skippedTestCount} skipped (${result.resultType})")
+			}
+		}
+	}
+}

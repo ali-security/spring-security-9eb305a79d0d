@@ -1,10 +1,22 @@
 language: java
 
-jdk:
-  - openjdk8
-
 os:
   - linux
+
+# Travis provisions Ubuntu 24.04 with JDK 17 whatever `jdk:`/`dist:` say, and
+# Gradle 5.6.2 cannot run on 17, so install the JDK the release was built with
+# (1.8.0_232, per the published jar's MANIFEST Created-By).
+before_install:
+  - curl -sSfL -o /tmp/jdk8.tar.gz https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u232-b09/OpenJDK8U-jdk_x64_linux_hotspot_8u232b09.tar.gz
+  - mkdir -p $HOME/jdk8 && tar -xzf /tmp/jdk8.tar.gz -C $HOME/jdk8 --strip-components=1
+  - export JAVA_HOME=$HOME/jdk8
+  - export PATH=$JAVA_HOME/bin:$PATH
+  - java -version
+
+# Skip Travis's default `./gradlew assemble` install step: it builds every module
+# including the reference docs, whose asciidoctor deps were JCenter-only (gone).
+# The script below compiles everything it tests.
+install: true
 
 before_cache:
   - rm -f $HOME/.gradle/caches/modules-2/modules-2.lock
@@ -13,4 +25,6 @@ cache:
     - $HOME/.gradle/caches/
     - $HOME/.gradle/wrapper/
 
-script: ./gradlew build --refresh-dependencies --no-daemon --continue
+# spring-security-core plus the modules whose sources the security fixes touch
+# (crypto, web, oauth2-client, saml2-service-provider).
+script: ./gradlew -I .travis/test-logging.gradle --refresh-dependencies --no-daemon --continue --console=plain :spring-security-core:jar :spring-security-core:test :spring-security-crypto:test :spring-security-web:test :spring-security-oauth2-client:test :spring-security-saml2-service-provider:test
